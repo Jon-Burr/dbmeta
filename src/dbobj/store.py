@@ -45,13 +45,13 @@ class Store(with_metaclass(abc.ABCMeta, object)):
     def __init__(self):
         self._db_refs = WeakColl()
 
-    def add_store_ref(self, store):
+    def add_db_ref(self, db):
         """ Add a store to our reference lists """
-        self._db_refs.append(store)
+        self._db_refs.append(db)
 
-    def rm_store_ref(self, store):
+    def rm_db_ref(self, db):
         """ Remove a store to our reference lists """
-        self._db_refs.remove(store)
+        self._db_refs.remove(db)
 
     @abc.abstractmethod
     def __getitem__(self, idx_pair):
@@ -260,13 +260,12 @@ class MutableNamedTupAssocStore(NamedTupAssocStore, MutableAssocStore):
         if index in self:
             raise KeyError(
                     "Attempting to add pre-existing index {0}!".format(index) )
-        print(row_data)
         self._data[index] = self._tuple_cls(**row_data)
 
     def __setitem__(self, idx_pair, value):
         row_idx, col_idx = idx_pair
         self._data[row_idx] = self._data[row_idx]._replace(
-                {self._tuple_cls._fields[col_idx] : value})
+                **{self._tuple_cls._fields[col_idx] : value})
 
     def __delitem__(self, row_idx):
         del self._data[row_idx]

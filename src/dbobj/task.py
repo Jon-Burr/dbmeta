@@ -10,11 +10,9 @@ class TaskDB(AssocDatabase):
     taskID = ColumnDesc(is_index=True, store_type=str, type=int)
     taskName = ColumnDesc()
 
-    def write(self):
-        self._store.write()
+    def write(self, **kwargs):
+        self._store.write(**kwargs)
 
 
 if __name__ == "__main__":
     db = TaskDB("test.json")
-    # t1 = db.add(taskID = 1005, taskName='test.1')
-    # db.write()

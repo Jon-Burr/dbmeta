@@ -275,6 +275,7 @@ class DBBase(with_metaclass(DBMeta, object) ):
             raise ValueError(
                 "Associative database received a non associative store!")
         self._store = store
+        store.add_db_ref(self)
         self._references = WeakColl()
 
     def __len__(self):
