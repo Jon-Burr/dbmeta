@@ -1,9 +1,13 @@
 from __future__ import print_function
-from future.utils import iteritems
+from future.utils import PY3, iteritems
 from builtins import object, zip
 from itertools import repeat
 from inspect import isgenerator
 import operator
+if PY3:
+    from collections.abc import Mapping
+else:
+    from collections import Mapping
 
 class AlgebraicGenerator(object):
     def __init__(self, itr):
@@ -86,6 +90,19 @@ class AlgebraicGenerator(object):
     def __or__(self, other):
         return self.call(operator.or_, other)
 
+def identity(x):
+    """ Helper identity function x -> x """
+    return x
+
+def read_identity(x, source=None):
+    """ Helper identity function x -> x """
+    return identity(x)
+
+def write_identity(x, target=None):
+    """ Helper identity function x -> x """
+    return identity(x)
+
+
 class ColumnDesc(object):
     """ Describe a column in the database
     
@@ -98,33 +115,49 @@ class ColumnDesc(object):
     """
     NO_DEFAULT=object()
     def __init__(
-            self, doc=None, key=None, type=None, col_cls=None, store_type=None,
-            default=NO_DEFAULT, is_index=False):
+            self, doc=None, key=None, col_cls=None, default=NO_DEFAULT,
+            is_index=False, read_func=read_identity, write_func=write_identity,
+            type=identity, store_type=identity):
         """ Create the description
 
             Parameters:
                 doc: The docstring for the column
-                key: The name of the column in the store
-                type: The type to be stored in the column
+                key: The name of the column in remote stores
                 col_cls: The column class to be created from this description
-                store_type: The type of the column in the internal store
                 default: The default value this column should take
                 is_index: If this column is the index in an associative DB
 
-            If key is not set, it will be set from the attribute name in the
-            database class
-
-            If type is set, it should be a class to convert the stored values
-            on return (it can also be a function - the important thing is that
-            it is a mapping from the stored value to what is output
-
-            store_type should then be the inverse of the type function. It is
-            only needed if the store will allow setting information (i.e. is not
-            readonly)
+            key should be a mapping from remote store type to the key of this
+            column in that store, with None representing the default value. If a
+            string is provided then key will be replaced internally by {None:
+            key}. If no value is provided then key will be replaced internally
+            with {None: name} where name is the attribute name of the column on
+            the database class
 
             The doc string can be a format string, its format function will be
             called with keyword arguments name and index (the name and index of
             the column)
+
+            Conversions
+            -----------
+            There are four conversion functions that can be supplied.
+            type:
+                Applied when reading a field directly from the database. This
+                rarely needs to be anything other than identity but might be
+                useful when overriding an existing column via inheritance
+            store_type:
+                Applied when writing a field directly back into the database,
+                should be the inverse of type
+            read_func:
+                Applied when reading a field *into* the database from some
+                remote store (e.g. a JSON file). In order to support multiple
+                types of remote store, each remote store should be named to
+                allow this function to behave differently for different type.
+                This name is provided as the source keyword parameter.
+            write_func:
+                The inverse of read_func, applied when writing the field back
+                into the remote store. For this function the remote store type
+                is provided as the target keyword parameter.
         """
         if is_index:
             if default is not ColumnDesc.NO_DEFAULT:
@@ -134,12 +167,19 @@ class ColumnDesc(object):
         if doc is None:
             doc = "The {name} column in the database"
         self.doc = doc
-        self.key = key
-        self.type = type
+        if key is None:
+            self.key = None
+        elif isinstance(key, Mapping):
+            self.key = key
+        else:
+            self.key = {None: key}
         self.col_cls = col_cls
-        self.store_type = store_type
         self.default = default
         self.is_index = is_index
+        self.type = type
+        self.store_type = store_type
+        self.read_func = read_func
+        self.write_func = write_func
 
 class Column(property):
     """ Default column implementation
@@ -166,13 +206,18 @@ class Column(property):
         """
         return self._name
 
-    @property
-    def key(self):
-        """ The key for this column
-
-            The key is the name used in the store
-        """
-        return self._desc.key if self._desc.key is not None else self.name
+    def key(self, remote):
+        """ The key for this column in the given remote source """
+        if self._desc.key is None:
+            return self.name
+        try:
+            return self._desc.key[remote]
+        except KeyError as e:
+            try:
+                return self._desc.key[None]
+            except KeyError:
+                # Raise the original key error
+                raise e
 
     @property
     def index(self):
@@ -189,20 +234,26 @@ class Column(property):
         """ The conversion from set value -> stored when setting """
         return self._desc.store_type
 
+    @property
+    def read_func(self):
+        """ The conversion from remote store -> local store """
+        return self._desc.read_func
+
+    @property
+    def write_func(self):
+        """ The conversion from local store -> remote store """
+        return self._desc.write_func
+
     def get(self, db, row_idx):
         """ Get the value of this column in the specified row """
-        stored_val = db._store[row_idx, self.index]
-        return stored_val if self.type is None else self.type(stored_val)
+        return self.type(db._store[row_idx, self.index])
 
     def set(self, db, row_idx, value):
         """ Set the value of this column in the specified row
         
             This will only work if the underlying store permits modification
         """
-        # Convert if necessary
-        if self.store_type is not None:
-            value = self.store_type(value)
-        db._store[row_idx, self.index] = value
+        db._store[row_idx, self.index] = self.store_type(value)
 
 class Field(property):
     def __init__(self, column):
@@ -252,6 +303,16 @@ class IndexColumn(property):
     def store_type(self):
         """ The conversion from set value -> stored when setting """
         return self._desc.store_type
+
+    @property
+    def read_func(self):
+        """ The conversion from remote store -> local store """
+        return self._desc.read_func
+
+    @property
+    def write_func(self):
+        """ The conversion from local store -> remote store """
+        return self._desc.write_func
 
 class IndexField(property):
     def __init__(self, column):

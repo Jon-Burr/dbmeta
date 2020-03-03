@@ -20,38 +20,41 @@
     should uniquely identify the row). This store is most akin to a dict.
 """
 from builtins import object
-from future.utils import PY3, iteritems, with_metaclass
+from future.utils import PY3, with_metaclass
 if PY3:
     from collections.abc import Sequence, Mapping
 else:
     from collections import Sequence, Mapping
-from collections import namedtuple
 import abc
 import json
-from .weakcoll import WeakColl
 
 class Store(with_metaclass(abc.ABCMeta, object)):
     """ Base class for all store objects 
     
-        A store keeps references to any databases that reference it. This will
-        usually be just one, but the possibility exists for it to be more
-
         Stores should be immutable, unless they explicitly inherit from a
         Mutable base class. However, we want there to be a sensible error
         message when trying to modify one, so mutable methods are defined here,
         and then overridden with abstract methods in the mutable base classes
     """
 
-    def __init__(self):
-        self._db_refs = WeakColl()
+    _store_type = None
 
-    def add_db_ref(self, db):
-        """ Add a store to our reference lists """
-        self._db_refs.append(db)
+    def __init__(self, db):
+        self._db = db
 
-    def rm_db_ref(self, db):
-        """ Remove a store to our reference lists """
-        self._db_refs.remove(db)
+    @property
+    def _columns(self):
+        """ The columns in this store """
+        return self._db._columns
+
+    @property
+    def _index_column(self):
+        """ The index column for this store
+
+            Note that unlike for databases this returns the column itself, not
+            just its name
+        """
+        return getattr(type(self._db), self._db._index_column)
 
     @abc.abstractmethod
     def __getitem__(self, idx_pair):
@@ -155,8 +158,7 @@ class MutableSeqStore(SeqStore):
         remap = {idx + 1: idx for idx in range(row_idx, len(self) )}
         if not remap:
             return
-        for db in self._db_refs:
-            db._remap_indices(remap)
+        self._db._remap_indices(remap)
 
 
 class MutableAssocStore(AssocStore):
@@ -184,88 +186,3 @@ class MutableAssocStore(AssocStore):
     def __delitem__(self, row_idx):
         """ Delete a whole row """
         pass
-
-class NamedTupSeqStore(SeqStore):
-    """ Sequential store that stores data internally as namedtuples """
-    def __init__(self, ordered_columns, data = None):
-        """ Create the store.
-
-            Parameters:
-                ordered_columns: The names of the columns in stores, in the
-                                 correct order
-                data: The data to be stored, should be an iterable of dicts
-        """
-        self._tuple_cls = namedtuple("Storage", ordered_columns)
-        self._data = None
-        if data is not None:
-            self._data = [self._tuple_cls(**d) for d in data]
-        super(NamedTupSeqStore, self).__init__()
-
-    def __getitem__(self, idx_pair):
-        row_idx, col_idx = idx_pair
-        return self._data[row_idx][col_idx]
-
-    def __len__(self):
-        return len(self._data)
-
-class MutableNamedTupSeqStore(NamedTupSeqStore, MutableSeqStore):
-    """ Mutable sequential store that stores data internall as namedtuples """
-
-    def append(self, row_data):
-        self._data.append(self._tuple_cls(**row_data) )
-
-    def __setitem__(self, idx_pair, value):
-        row_idx, col_idx = idx_pair
-        self._data[row_idx] = self._data[row_idx]._replace(
-                {self._tuple_cls._fields[col_idx] : value})
-
-    def __delitem__(self, row_idx):
-        del self._data[row_idx]
-        MutableSeqStore.__delitem__(self, row_idx)
-
-class NamedTupAssocStore(AssocStore):
-    """ Associative store that stores data internally as namedtuples """
-    def __init__(self, ordered_columns, data = None):
-        """ Create the store.
-
-            Parameters:
-                ordered_columns: The names of the columns in stores, in the
-                                 correct order
-                data: The data to be stored, should be an iterable of dicts
-        """
-        self._tuple_cls = namedtuple("Storage", ordered_columns)
-        self._data = None
-        if data is not None:
-            self._data = {
-                    k: self._tuple_cls(**v) for k, v in iteritems(data)}
-        super(NamedTupAssocStore, self).__init__()
-
-    def __getitem__(self, idx_pair):
-        row_idx, col_idx = idx_pair
-        return self._data[row_idx][col_idx]
-
-    def __len__(self):
-        return len(self._data)
-
-    def __iter__(self):
-        return iter(self._data)
-
-    def __contains__(self, row_idx):
-        return row_idx in self._data
-
-class MutableNamedTupAssocStore(NamedTupAssocStore, MutableAssocStore):
-    """ Mutable associative store that stores data internally as namedtuples """
-
-    def add(self, index, row_data):
-        if index in self:
-            raise KeyError(
-                    "Attempting to add pre-existing index {0}!".format(index) )
-        self._data[index] = self._tuple_cls(**row_data)
-
-    def __setitem__(self, idx_pair, value):
-        row_idx, col_idx = idx_pair
-        self._data[row_idx] = self._data[row_idx]._replace(
-                **{self._tuple_cls._fields[col_idx] : value})
-
-    def __delitem__(self, row_idx):
-        del self._data[row_idx]

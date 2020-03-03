@@ -1,8 +1,9 @@
 """ Store classes for reading and writing to JSON """
 
 from future.utils import iteritems
-from .store import (
-        Store, NamedTupSeqStore, NamedTupAssocStore, MutableNamedTupSeqStore,
+from .store import Store
+from .namedtup_store import (
+        NamedTupSeqStore, NamedTupAssocStore, MutableNamedTupSeqStore,
         MutableNamedTupAssocStore)
 import json
 import jsonpatch
@@ -13,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 class JSONStore(Store):
     """ Immutable sequential JSON store """
-    def __init__(self, ordered_columns, db_file, allow_missing=False):
+
+    _store_type = "JSON"
+
+    def __init__(self, db_file, allow_missing=False, **kwargs):
         """ Create the store
 
             If allow_missing is True, then allow the file to be absent
@@ -25,73 +29,82 @@ class JSONStore(Store):
         except IOError:
             if not allow_missing:
                 raise
-            elif self.is_associative:
-                data = {}
             else:
-                data = []
-        super(JSONStore, self).__init__(ordered_columns, data)
+                data = None
+        super(JSONStore, self).__init__(data=data, **kwargs)
+
+    def update(self):
+        """ Update our internal storage from the file on disk.
+
+            If this is a sequential store it will almost certainly mess up any
+            referenced rows
+        """
+        if not os.path.exists(self._db_file):
+            return
+        with open(self._db_file, 'r') as fp:
+            self.from_dict(json.load(fp))
 
 class MutableJSONStore(JSONStore):
     """ Mutable sequential JSON store """
-    def __init__(self, ordered_columns, db_file):
+    def __init__(self, db_file, **kwargs):
         """ Create the store """
         self._patches = []
         super(MutableJSONStore, self).__init__(
-                ordered_columns=ordered_columns, db_file=db_file,
-                allow_missing=True)
+                db_file=db_file, allow_missing=True, **kwargs)
+
+    def update(self, **kwargs):
+        """ Update our internal storage from the file on disk.
+
+            If this is a sequential store it will almost certainly mess up any
+            referenced rows
+        """
+        if 'indent' not in kwargs:
+            kwargs["indent"] = 2
+        if not os.path.exists(self._db_file):
+            # If the file doesn't exist then we don't need to do anything
+            return
+        # We have to try and patch the existing file
+        with open(self._db_file, 'r') as fp:
+            on_disk = json.load(fp)
+        try:
+            patch = jsonpatch.JsonPatch(self._patches)
+            patch.apply(on_disk, in_place=True)
+        except jsonpatch.JsonPatchException as e:
+            # Use the current POSIX time stamp to make a unique filename
+            stamp = int(time.time() )
+            tmp_db = "{0}.{1}".format(self._db_file, stamp)
+            tmp_patches = tmp_db + ".jsonpatch"
+
+            logger.error((
+                "Failed to apply patches! Will write current info in {0},"+
+                "{1} files").format(tmp_db, tmp_patches))
+            with open(tmp_db, 'w') as fp:
+                json.dump(self.to_dict(), fp, **kwargs)
+
 
     def write(self, **kwargs):
         """ Write the store back to disk
         
             kwargs are forwarded back to the json.dump function
         """
-        # First, see if the file already exists
-        if os.path.exists(self._db_file):
-            # We have to try and patch the existing file
-            with open(self._db_file, 'r') as fp:
-                on_disk = json.load(fp)
-            try:
-                patch = jsonpatch.JsonPatch(self._patches)
-                patch.apply(on_disk, in_place=True)
-            except jsonpatch.JsonPatchException as e:
-                # Use the current POSIX time stamp to make a unique filename
-                stamp = int(time.time() )
-                tmp_db = "{0}.{1}".format(self._db_file, stamp)
-                tmp_patches = tmp_db + ".jsonpatch"
-
-                logger.error((
-                    "Failed to apply patches! Will write current info in {0},"+
-                    "{1} files").format(tmp_db, tmp_patches))
-                with open(tmp_db, 'w') as fp:
-                    if self.is_associative:
-                        json.dump(
-                                {k : v._asdict() for k, v in iteritems(self._data)},
-                                fp, **kwargs)
-                    else:
-                        json.dump([v._asdict() for v in self._data], fp, **kwargs)
-                with open(tmp_patches, 'w') as fp:
-                    json.dump(self._patches, fp, **kwargs)
-                return
-            with open(self._db_file, 'w') as fp:
-                json.dump(on_disk, fp, **kwargs)
-
+        # First, attempt to update the local store
+        self.update()
         # Only get here if the file doesn't already exist
         with open(self._db_file, 'w') as fp:
-            if self.is_associative:
-                json.dump(
-                        {k : v._asdict() for k, v in iteritems(self._data)},
-                        fp, **kwargs)
-            else:
-                json.dump([v._asdict() for v in self._data], fp, **kwargs)
+            json.dump(self.to_dict(), fp, **kwargs)
 
     def __setitem__(self, idx_pair, value):
         # Get the current value
-        current = self[idx_pair]
+        row_idx, col_idx = idx_pair
+        col = self._columns[col_idx]
+        current = col.write_func(self[idx_pair], self._store_type)
         super(MutableJSONStore, self).__setitem__(idx_pair, value)
         # Use make_patch to patch the value, and prepend the path to each
         # operation
-        row_idx, col_idx = idx_pair
-        path = "{0}/{1}".format(row_idx, self._tuple_cls._fields[col_idx])
+        value = col.write_func(value, self._store_type)
+        if self.is_associative:
+            row_idx = self._index_column.write_func(row_idx, self._store_type)
+        path = "{0}/{1}".format(row_idx, col.key(self._store_type))
         self._patches += [{
             "op": o["op"], "value" : o["value"],
             "path": "/{0}{1}".format(path, "/"+o["path"] if o["path"] else "")}
@@ -106,6 +119,9 @@ class MutableJSONSeqStore(MutableJSONStore, MutableNamedTupSeqStore):
         # The patch here first checks that the thing we're about to remove is
         # what we *expect* to remove. The reason to do this is make *very* sure
         # that we're removing the right thing
+        # Convert the index if necessary
+        if self.is_associative:
+            idx = self._index_column.write_func(idx, self._store_type)
         self._patches.append({
             "op": "test", "path": "/{0}".format(idx),
             "value": self._data[idx]._asdict()})
@@ -115,7 +131,8 @@ class MutableJSONSeqStore(MutableJSONStore, MutableNamedTupSeqStore):
     def append(self, row_data):
         super(MutableJSONSeqStore, self).append(row_data)
         self._patches.append({
-            "op": "add", "path": "/-", "value": row_data})
+            "op": "add", "path": "/-",
+            "value": self._from_tuple(self._data[-1])})
                
 
 class JSONAssocStore(JSONStore, NamedTupAssocStore):
@@ -128,6 +145,7 @@ class MutableJSONAssocStore(MutableJSONStore, MutableNamedTupAssocStore):
 
     def add(self, index, row_data):
         super(MutableJSONAssocStore, self).add(index, row_data)
+        write_index = self._index_column.write_func(index, self._store_type)
         self._patches.append({
-            "op": "add", "path": "/{0}".format(index), 
-            "value": row_data})
+            "op": "add", "path": "/{0}".format(write_index), 
+            "value": self._from_tuple(self._data[index])})

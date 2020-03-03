@@ -4,8 +4,8 @@ import json
 
 class TaskDB(AssocDatabase):
     def __init__(self, db_file):
-        super(TaskDB, self).__init__(MutableJSONAssocStore(
-            [c.name for c in self._columns], db_file) )
+        super(TaskDB, self).__init__(
+                store=MutableJSONAssocStore(db_file=db_file, db=self))
 
     taskID = ColumnDesc(is_index=True, store_type=str, type=int)
     taskName = ColumnDesc()
