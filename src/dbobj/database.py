@@ -10,7 +10,8 @@ else:
     from collections import Sequence, Mapping
 from collections import OrderedDict
 
-from .column import ColumnDesc, Column, Field, IndexColumn, IndexField
+from .column import (
+        ColumnDesc, Column, Field, IndexColumnDesc, IndexColumn, IndexField)
 from .weakcoll import WeakColl
 import copy
 
@@ -148,8 +149,8 @@ class DBMeta(abc.ABCMeta):
         These fields will be set by the __new__ function and cannot be provided
         in dct
 
-        _columns: The names of all fields in the row
-        _index_column: The name of the index field
+        _columns: The names of all columns in the row
+        _index_column: The name of the index column
 
         Fields read from dct
         --------------------
@@ -165,7 +166,8 @@ class DBMeta(abc.ABCMeta):
         Column descriptions
         -------------------
         Any class members of the ColumnDesc type will be replaced by the
-        appropriate column class 
+        appropriate column class. Also the IndexColumnDesc will be replaced by
+        its column type
 
         Custom row classes
         ------------------
@@ -217,7 +219,7 @@ class DBMeta(abc.ABCMeta):
         # The implementation of the class is in the reverse order, if one class
         # implements the same column (by name) as a less derived one, then the
         # more derived class' version is taken
-        base_index_column = IndexColumn("index", ColumnDesc(is_index=True))
+        base_index_column = IndexColumn("index", IndexColumnDesc())
         column_descs = OrderedDict()
         # Least derived classes first
         for base in reversed(mro):
@@ -242,14 +244,13 @@ class DBMeta(abc.ABCMeta):
         this_idx_col = None
         for attr_name, attr in iteritems(dct):
             if isinstance(attr, ColumnDesc):
-                if attr.is_index:
-                    if this_idx_col is None:
-                        this_idx_col = IndexColumn(attr_name, attr)
-                    else:
-                        raise ValueError(
-                                "Multiple index columns defined on class {0}".format(name) )
+                column_descs[attr_name] = attr
+            elif isinstance(attr, IndexColumnDesc):
+                if this_idx_col is None:
+                    this_idx_col = IndexColumn(attr_name, attr)
                 else:
-                    column_descs[attr_name] = attr
+                    raise ValueError(
+                            "Multiple index columns defined on class {0}".format(name) )
         index_column = base_index_column if this_idx_col is None else this_idx_col
         dct["_index_column"] = index_column.name
         dct[index_column.name] = index_column
@@ -464,7 +465,8 @@ class AssocDatabase(DBBase, Mapping):
         return True
 
     def __iter__(self):
-        return iter(self._store)
+        type_cnv = getattr(type(self), self._index_column).type
+        return (type(x) for x in self._store)
 
     def add(self, **row_data):
         """ Add a new row with the supplied index and data """

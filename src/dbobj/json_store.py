@@ -96,15 +96,12 @@ class MutableJSONStore(JSONStore):
     def __setitem__(self, idx_pair, value):
         # Get the current value
         row_idx, col_idx = idx_pair
-        col = self._columns[col_idx]
-        current = col.write_func(self[idx_pair], self._store_type)
+        before = self._from_tuple(self._data[row_idx])
         super(MutableJSONStore, self).__setitem__(idx_pair, value)
         # Use make_patch to patch the value, and prepend the path to each
         # operation
-        value = col.write_func(value, self._store_type)
-        if self.is_associative:
-            row_idx = self._index_column.write_func(row_idx, self._store_type)
-        path = "{0}/{1}".format(row_idx, col.key(self._store_type))
+        after = self._from_tuple(self._data[row_idx])
+        path = self._index_column.write_func(row_idx, self._store_type)
         self._patches += [{
             "op": o["op"], "value" : o["value"],
             "path": "/{0}{1}".format(path, "/"+o["path"] if o["path"] else "")}

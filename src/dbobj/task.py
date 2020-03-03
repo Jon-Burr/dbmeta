@@ -1,5 +1,5 @@
 from .json_store import MutableJSONAssocStore
-from .database import AssocDatabase, ColumnDesc
+from .database import AssocDatabase, IndexColumnDesc, ColumnDesc
 import json
 
 class TaskDB(AssocDatabase):
@@ -7,7 +7,9 @@ class TaskDB(AssocDatabase):
         super(TaskDB, self).__init__(
                 store=MutableJSONAssocStore(db_file=db_file, db=self))
 
-    taskID = ColumnDesc(is_index=True, store_type=str, type=int)
+    taskID = IndexColumnDesc(
+            read_func=lambda x, source: int(x),
+            write_func=lambda x, target: str(x) )
     taskName = ColumnDesc()
 
     def write(self, **kwargs):

@@ -15,17 +15,15 @@ class NamedTupStore(Store):
     def _to_tuple(self, data):
         """ Read a tuple from remote store data """
         return self._tuple_cls(**{
-            c.name: c.read_func(
-                data[c.key(self._store_type)], self._store_type)
-            for c in self._columns
-            })
+            c.name: c.read_from(data, self._store_type)
+            for c in self._columns})
 
     def _from_tuple(self, tup):
         """ Convert a tuple to a dictionary for sending to a remote store """
-        return {
-                c.key(self._store_type): c.write_func(tup[c.index])
-                for c in self._columns
-                }
+        data = {}
+        for c in self._columns:
+            c.write_to(tup[c.index], data, self._store_type)
+        return data
 
     def __getitem__(self, idx_pair):
         row_idx, col_idx = idx_pair
