@@ -45,8 +45,25 @@ class AlgebraicGenerator(object):
         return cls(func(*a[:-1], **a[-1]) for a in zip(*args))
 
     def call(self, func, *args, **kwargs):
+        """ Call the given function as a bound function on each of the members
+            of this iterable
+
+            args and kwargs are provided as arguments
+        """
         args = (self,) + args
         return type(self).apply(func, *args, **kwargs)
+
+    def __getattr__(self, name):
+        """ Return an iterator getting the attribute over all elements """
+        return self.call(getattr, name)
+
+    def __call__(self, *args, **kwargs):
+        """ If this is an iterable of callables, then call them elementwise with
+            the provided arguments
+        """
+        def do_call(self, *args, **kwargs):
+            return self(*args, **kwargs)
+        return self.call(do_call, *args, **kwargs)
 
     def __iter__(self):
         return self._itr
