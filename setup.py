@@ -23,7 +23,7 @@ setup(
     keywords=["database"],
     url="https://github.com/Jon-Burr/dbobj.git",
     install_requires=[
-        "funcsigs;python_version<\"3.0\"",
+        # "funcsigs;python_version<\"3.0\"",
         "future",
         "jsonpatch",
         ],
