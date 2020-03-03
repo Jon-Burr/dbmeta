@@ -465,8 +465,8 @@ class AssocDatabase(DBBase, Mapping):
         return True
 
     def __iter__(self):
-        type_cnv = getattr(type(self), self._index_column).type
-        return (type(x) for x in self._store)
+        cnv = getattr(type(self), self._index_column).type
+        return (cnv(x) for x in self._store)
 
     def add(self, **row_data):
         """ Add a new row with the supplied index and data """
