@@ -471,7 +471,7 @@ class IndexColumn(ColumnBase):
     """ The index column """
     def __init__(self, name, desc):
         def fget(obj):
-            return AlgebraicGenerator(obj)
+            return AlgebraicGenerator(iter(obj))
         super(IndexColumn, self).__init__(name=name, desc=desc, fget=fget)
 
     @property
