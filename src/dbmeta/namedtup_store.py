@@ -7,8 +7,9 @@ class NamedTupStore(Store):
     def __init__(self, data=None, **kwargs):
         super(NamedTupStore, self).__init__(**kwargs)
         self._tuple_cls = namedtuple(
-                type(self).__name__,
-                [c.name for c in self._columns])
+                type(self).__name__+"Tup",
+                [c.name for c in self._columns],
+                rename=True)
         if data is not None:
             self.from_dict(data)
 
