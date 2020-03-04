@@ -2,7 +2,7 @@ from future.utils import PY3
 from itertools import repeat
 import operator
 if PY3:
-    from collections.abc import Iterator, Iterable, Collection
+    from collections.abc import Iterator, Iterable
 else:
     from collections import Iterator, Iterable
 
@@ -151,11 +151,7 @@ class ItrMonad(CollMonad, Iterator):
         def next(self):
             return next(self._itr)
 
-if PY3:
-    extra = Collection
-else:
-    extra = ()
-class TupleMonad(CollMonad, *extra):
+class TupleMonad(CollMonad):
     """ CollMonad that acts as a tuple
 
         The whole result of the calculation is stored and can be iterated
