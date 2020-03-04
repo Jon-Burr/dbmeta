@@ -114,7 +114,7 @@ class MutableJSONStore(JSONStore):
         self._patches += [{
             "op": o["op"], "value" : o["value"],
             "path": "/{0}{1}".format(path, "/"+o["path"] if o["path"] else "")}
-            for o in jsonpatch.make_patch(current, value)]
+            for o in jsonpatch.make_patch(before, after)]
         if self._up_on_change:
             self.update()
 
