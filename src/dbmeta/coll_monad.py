@@ -2,13 +2,15 @@ from future.utils import PY3
 from itertools import repeat
 import operator
 if PY3:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Iterable
 else:
-    from collections import Iterator
+    from collections import Iterator, Iterable
 
-class ItrMonad(Iterator):
-    """ Special type of iterator that allows forwarding attribute retrieval,
-        function calls, etc to the iterated objects
+class CollMonad(Iterable):
+    """ Special type of iterable that allows forwarding attribute retrieval,
+        function calls, etc to the iterated objects.
+        
+        The examples here show ItrMonad but TupleMonad works in the same way
 
         Operators can be forwarded
         >>> itr = ItrMonad(iter([0, 1, 2, 3, 4, 5]))
@@ -34,9 +36,6 @@ class ItrMonad(Iterator):
         >>> print(list(ItrMonad.apply(str.format, "x = {0}", itr1)))
         ['x = 0', 'x = 1', 'x = 2', 'x = 3', 'x = 4', 'x = 5']
     """
-    def __init__(self, itr):
-        self._itr = itr
-
     @classmethod
     def apply(cls, func, *args, **kwargs):
         """ Apply a function elementwise for iterables
@@ -44,6 +43,9 @@ class ItrMonad(Iterator):
             Any argument that is not an Iterator will be replaced by
             itertools.repeat. This means that if no arguments are iterators, the
             returned iterator will never be exhausted!
+
+            Note that this uses Iterators, rather than Iterables to avoid
+            zipping objects like strings.
         """
         def to_repeat(x):
             if isinstance(x, Iterator):
@@ -86,16 +88,6 @@ class ItrMonad(Iterator):
             return self(*args, **kwargs)
         return self.call(do_call, *args, **kwargs)
 
-    def __iter__(self):
-        return self
-
-    if PY3:
-        def __next__(self):
-            return next(self._itr)
-    else:
-        def next(self):
-            return next(self._itr)
-
     def __eq__(self, other):
         return self.call(operator.eq, other)
 
@@ -137,3 +129,48 @@ class ItrMonad(Iterator):
 
     def __or__(self, other):
         return self.call(operator.or_, other)
+
+class ItrMonad(CollMonad, Iterator):
+    """ CollMonad that acts as an iterator
+
+        Only valid for a single pass, but likely to be more efficient for most
+        operations (each individual calculation can short circuit, for example)
+    """
+    def __init__(self, itr):
+        if not isinstance(itr, Iterator):
+            itr = iter(itr)
+        self._itr = itr
+
+    def __iter__(self):
+        return self
+
+    if PY3:
+        def __next__(self):
+            return next(self._itr)
+    else:
+        def next(self):
+            return next(self._itr)
+
+class TupleMonad(CollMonad):
+    """ CollMonad that acts as a tuple
+
+        The whole result of the calculation is stored and can be iterated
+        through multiple times.
+
+        Has a helper 'select' function that returns a filtered result
+        >>> tup = TupleMonad([0, 1, 2, 3, 4, 5])
+        >>> tup.select(tup % 2 == 0)
+        TupleMonad(0, 2, 4)
+    """
+
+    def __init__(self, itr):
+        self._tup = tuple(itr)
+
+    def __iter__(self):
+        return ItrMonad(self)
+
+    def __str__(self):
+        return "TupleMonad{0}".format(self._tup)
+
+    def select(self, selection):
+        return TupleMonad(x for (x, sel) in zip(self, selection) if sel)

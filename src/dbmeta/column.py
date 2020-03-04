@@ -2,7 +2,7 @@ from __future__ import print_function
 from future.utils import PY3, iteritems
 from builtins import object, zip
 from functools import wraps
-from .itr_monad import ItrMonad
+from .coll_monad import ItrMonad
 if PY3:
     from collections.abc import Mapping
     from inspect import signature
