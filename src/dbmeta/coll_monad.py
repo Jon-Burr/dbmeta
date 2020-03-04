@@ -4,7 +4,7 @@ import operator
 if PY3:
     from collections.abc import Iterator, Iterable, Collection
 else:
-    from collections import Iterator, Iterable, Collection
+    from collections import Iterator, Iterable
 
 class CollMonad(Iterable):
     """ Special type of iterable that allows forwarding attribute retrieval,
@@ -151,7 +151,11 @@ class ItrMonad(CollMonad, Iterator):
         def next(self):
             return next(self._itr)
 
-class TupleMonad(CollMonad, Collection):
+if PY3:
+    extra = Collection
+else:
+    extra = ()
+class TupleMonad(CollMonad, *extra):
     """ CollMonad that acts as a tuple
 
         The whole result of the calculation is stored and can be iterated
