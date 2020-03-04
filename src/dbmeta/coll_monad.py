@@ -2,9 +2,9 @@ from future.utils import PY3
 from itertools import repeat
 import operator
 if PY3:
-    from collections.abc import Iterator, Iterable
+    from collections.abc import Iterator, Iterable, Collection
 else:
-    from collections import Iterator, Iterable
+    from collections import Iterator, Iterable, Collection
 
 class CollMonad(Iterable):
     """ Special type of iterable that allows forwarding attribute retrieval,
@@ -151,7 +151,7 @@ class ItrMonad(CollMonad, Iterator):
         def next(self):
             return next(self._itr)
 
-class TupleMonad(CollMonad):
+class TupleMonad(CollMonad, Collection):
     """ CollMonad that acts as a tuple
 
         The whole result of the calculation is stored and can be iterated
@@ -171,6 +171,12 @@ class TupleMonad(CollMonad):
 
     def __str__(self):
         return "TupleMonad{0}".format(self._tup)
+
+    def __len__(self):
+        return len(self._tup)
+
+    def __contains__(self, x):
+        return x in self._tup
 
     def select(self, selection):
         return TupleMonad(x for (x, sel) in zip(self, selection) if sel)
