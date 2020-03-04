@@ -2,9 +2,9 @@
 
 from future.utils import iteritems
 from .store import Store
-from .namedtup_store import (
-        NamedTupSeqStore, NamedTupAssocStore, MutableNamedTupSeqStore,
-        MutableNamedTupAssocStore)
+from .tuple_store import (
+        TupleSeqStore, TupleAssocStore, MutableTupleSeqStore,
+        MutableTupleAssocStore)
 import json
 import jsonpatch
 import os
@@ -13,9 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class JSONStore(Store):
-    """ Immutable sequential JSON store """
-
-    _store_type = "JSON"
+    """ Immutable JSON store """
 
     def __init__(self, db_file, allow_missing=False, **kwargs):
         """ Create the store
@@ -31,7 +29,8 @@ class JSONStore(Store):
                 raise
             else:
                 data = None
-        super(JSONStore, self).__init__(data=data, **kwargs)
+        super(JSONStore, self).__init__(
+                data=data, store_type="JSON", **kwargs)
 
     def update(self):
         """ Update our internal storage from the file on disk.
@@ -42,7 +41,7 @@ class JSONStore(Store):
         if not os.path.exists(self._db_file):
             return
         with open(self._db_file, 'r') as fp:
-            self.from_dict(json.load(fp))
+            self.from_dict(json.load(fp), "JSON")
 
 class MutableJSONStore(JSONStore):
     """ Mutable sequential JSON store """
@@ -87,7 +86,8 @@ class MutableJSONStore(JSONStore):
                 "{1} files").format(tmp_db, tmp_patches))
             with open(tmp_db, 'w') as fp:
                 json.dump(self.to_dict(), fp, **kwargs)
-
+            raise e
+        self.from_dict(on_disk, "JSON")
 
     def write(self, **kwargs):
         """ Write the store back to disk
@@ -98,17 +98,19 @@ class MutableJSONStore(JSONStore):
         self.update()
         # Only get here if the file doesn't already exist
         with open(self._db_file, 'w') as fp:
-            json.dump(self.to_dict(), fp, **kwargs)
+            json.dump(self.to_dict("JSON"), fp, **kwargs)
 
     def __setitem__(self, idx_pair, value):
         # Get the current value
         row_idx, col_idx = idx_pair
-        before = self._from_tuple(self._data[row_idx])
+        before = self._remote_from_tuple(
+                self._data[row_idx], "JSON")
         super(MutableJSONStore, self).__setitem__(idx_pair, value)
         # Use make_patch to patch the value, and prepend the path to each
         # operation
-        after = self._from_tuple(self._data[row_idx])
-        path = self._index_column.write_func(row_idx, self._store_type)
+        after = self._remote_from_tuple(
+                self._data[row_idx], "JSON")
+        path = self._index_column.write_func(row_idx, "JSON")
         self._patches += [{
             "op": o["op"], "value" : o["value"],
             "path": "/{0}{1}".format(path, "/"+o["path"] if o["path"] else "")}
@@ -116,10 +118,10 @@ class MutableJSONStore(JSONStore):
         if self._up_on_change:
             self.update()
 
-class JSONSeqStore(JSONStore, NamedTupSeqStore):
+class JSONSeqStore(JSONStore, TupleSeqStore):
     pass
 
-class MutableJSONSeqStore(MutableJSONStore, MutableNamedTupSeqStore):
+class MutableJSONSeqStore(MutableJSONStore, MutableTupleSeqStore):
     def __delitem__(self, idx):
         super(MutableJSONSeqStore, self).__delitem__(idx)
         # The patch here first checks that the thing we're about to remove is
@@ -127,10 +129,11 @@ class MutableJSONSeqStore(MutableJSONStore, MutableNamedTupSeqStore):
         # that we're removing the right thing
         # Convert the index if necessary
         if self.is_associative:
-            idx = self._index_column.write_func(idx, self._store_type)
+            idx = self._index_column.write_func(idx, "JSON")
         self._patches.append({
             "op": "test", "path": "/{0}".format(idx),
-            "value": self._data[idx]._asdict()})
+            "value": self._remote_from_tuple(
+                self._data[idx], "JSON")})
         # Then the one that removes it
         self._patches.append({"op": "remove", "path": "/"+idx})
         if self._up_on_change:
@@ -140,26 +143,28 @@ class MutableJSONSeqStore(MutableJSONStore, MutableNamedTupSeqStore):
         super(MutableJSONSeqStore, self).append(row_data)
         self._patches.append({
             "op": "add", "path": "/-",
-            "value": self._from_tuple(self._data[-1])})
+            "value": self._remote_from_tuple(
+                self._data[-1], "JSON")})
         if self._up_on_change:
             self.update()
                
 
-class JSONAssocStore(JSONStore, NamedTupAssocStore):
+class JSONAssocStore(JSONStore, TupleAssocStore):
     pass
 
-class MutableJSONAssocStore(MutableJSONStore, MutableNamedTupAssocStore):
+class MutableJSONAssocStore(MutableJSONStore, MutableTupleAssocStore):
     def __delitem__(self, idx):
         super(MutableJSONAssocStore, self).__delitem__(idx)
+        idx = self._index_column.write_func(index, "JSON")
         self._patches.append({"op": "remove", "path" : "/"+idx})
         if self._up_on_change:
             self.update()
 
     def add(self, index, row_data):
         super(MutableJSONAssocStore, self).add(index, row_data)
-        write_index = self._index_column.write_func(index, self._store_type)
+        write_index = self._index_column.write_func(index, "JSON")
         self._patches.append({
             "op": "add", "path": "/{0}".format(write_index), 
-            "value": self._from_tuple(self._data[index])})
+            "value": self._remote_from_tuple(self._data[index], "JSON")})
         if self._up_on_change:
             self.update()

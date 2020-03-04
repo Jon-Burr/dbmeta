@@ -37,8 +37,6 @@ class Store(with_metaclass(abc.ABCMeta, object)):
         and then overridden with abstract methods in the mutable base classes
     """
 
-    _store_type = None
-
     def __init__(self, db):
         self._db = db
 
