@@ -167,7 +167,7 @@ class TupleMonad(CollMonad):
         self._tup = tuple(itr)
 
     def __iter__(self):
-        return ItrMonad(self)
+        return ItrMonad(self._tup)
 
     def __str__(self):
         return "TupleMonad{0}".format(self._tup)
