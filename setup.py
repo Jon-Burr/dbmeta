@@ -10,7 +10,7 @@ with open(path.join(this_directory, 'README.rst') ) as f:
     long_description = f.read()
 
 setup(
-    name="dbobj",
+    name="dbmeta",
     version="0.2.1",
     packages=find_packages('src'),
     package_dir={'':'src'},
@@ -21,7 +21,7 @@ setup(
     author="Jon Burr",
     author_email="jon.burr.gh@gmail.com",
     keywords=["database"],
-    url="https://github.com/Jon-Burr/dbobj.git",
+    url="https://github.com/Jon-Burr/dbmeta.git",
     install_requires=[
         "future",
         "jsonpatch",
