@@ -11,7 +11,7 @@ with open(path.join(this_directory, 'README.rst') ) as f:
 
 setup(
     name="dbmeta",
-    version="0.2.1",
+    version="0.0.1",
     packages=find_packages('src'),
     package_dir={'':'src'},
     license="MIT",
