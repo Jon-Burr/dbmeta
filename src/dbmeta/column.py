@@ -1,10 +1,8 @@
 from __future__ import print_function
 from future.utils import PY3, iteritems
 from builtins import object, zip
-from itertools import repeat
-from inspect import isgenerator
 from functools import wraps
-import operator
+from .itr_monad import ItrMonad
 if PY3:
     from collections.abc import Mapping
     from inspect import signature
@@ -12,106 +10,6 @@ else:
     from collections import Mapping
     from funcsigs import signature
 
-class AlgebraicGenerator(object):
-    def __init__(self, itr):
-        self._itr = itr
-
-    @classmethod
-    def apply(cls, func, *args, **kwargs):
-        """ Apply a function elementwise for iterables
-        
-            Any argument that is not an AlgebraicGenerator will be replaced by
-            itertools.repeat. This means that if no arguments are generators,
-            the returned generator will never be exhausted!
-        """
-        def to_repeat(x):
-            if isinstance(x, cls) or isgenerator(x):
-                return x
-            else:
-                return repeat(x)
-
-        # Make any arguments that aren't generators into 'repeat' functions
-        args = [to_repeat(a) for a in args]
-
-        # Make any kwargs the same
-        if kwargs:
-            # zip the values together
-            kwargs = {k : to_repeat(v) for k, v in iteritems(kwargs)}
-            # and then zip them back together with the original keys
-            g_kw = (dict(zip(kwargs.keys(), vs)) for vs in zip(*kwargs.values() ))
-        else:
-            g_kw = repeat({})
-        args.append(g_kw)
-        return cls(func(*a[:-1], **a[-1]) for a in zip(*args))
-
-    def call(self, func, *args, **kwargs):
-        """ Call the given function as a bound function on each of the members
-            of this iterable
-
-            args and kwargs are provided as arguments
-        """
-        args = (self,) + args
-        return type(self).apply(func, *args, **kwargs)
-
-    def __getattr__(self, name):
-        """ Return an iterator getting the attribute over all elements """
-        return self.call(getattr, name)
-
-    def __call__(self, *args, **kwargs):
-        """ If this is an iterable of callables, then call them elementwise with
-            the provided arguments
-        """
-        def do_call(self, *args, **kwargs):
-            return self(*args, **kwargs)
-        return self.call(do_call, *args, **kwargs)
-
-    def __iter__(self):
-        return self._itr
-
-    def __next__(self):
-        return next(self._itr)
-
-    def __eq__(self, other):
-        return self.call(operator.eq, other)
-
-    def __ne__(self, other):
-        return self.call(operator.ne, other)
-
-    def __gt__(self, other):
-        return self.call(operator.gt, other)
-
-    def __ge__(self, other):
-        return self.call(operator.ge, other)
-
-    def __le__(self, other):
-        return self.call(operator.le, other)
-
-    def __lt__(self, other):
-        return self.call(operator.lt, other)
-
-    def __add__(self, other):
-        return self.call(operator.add, other)
-
-    def __sub__(self, other):
-        return self.call(operator.sub, other)
-
-    def __mul__(self, other):
-        return self.call(operator.mul, other)
-
-    def __div__(self, other):
-        return self.call(operator.div, other)
-
-    def __abs__(self):
-        return self.call(operator.abs)
-
-    def __mod__(self, other):
-        return self.call(operator.mod, other)
-
-    def __and__(self, other):
-        return self.call(operator.and_, other)
-
-    def __or__(self, other):
-        return self.call(operator.or_, other)
 
 def identity(x):
     """ Helper identity function x -> x """
@@ -334,7 +232,7 @@ class Column(ColumnBase):
     """
     def __init__(self, name, index, desc):
         def fget(obj):
-            return AlgebraicGenerator(self.get(obj, row_idx) for row_idx in obj)
+            return ItrMonad(self.get(obj, row_idx) for row_idx in obj)
         ColumnBase.__init__(self, name=name, desc=desc, index=index, fget=fget)
         self._index = index
 
@@ -491,7 +389,7 @@ class IndexColumn(ColumnBase):
     """ The index column """
     def __init__(self, name, desc):
         def fget(obj):
-            return AlgebraicGenerator(iter(obj))
+            return ItrMonad(iter(obj))
         super(IndexColumn, self).__init__(name=name, desc=desc, fget=fget)
 
     @property

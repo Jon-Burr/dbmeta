@@ -1,7 +1,7 @@
 """ Database classes
 """
     
-from builtins import object
+from builtins import object, range, zip
 from future.utils import PY3, iteritems, with_metaclass
 import abc
 if PY3:
@@ -373,9 +373,12 @@ class DBBase(with_metaclass(DBMeta, object) ):
             selection is an iterable of True/False decisions that should be
             constructed by applying conditions to the database' columns
 
-            Returns an iterable
+            Returns an ItrMonad
         """
-        return (self[idx] for (idx, sel) in zip(self, selection) if sel)
+        if self.is_associative:
+            return ItrMonad(self[idx] for (idx, sel) in zip(self, selection) if sel)
+        else:
+            return ItrMonad(row for (row, sel) in zip(self, selection) if sel)
 
     def select_one(self, selection):
         """ Convenience method. Returns the results of select if it would
@@ -389,8 +392,8 @@ class DBBase(with_metaclass(DBMeta, object) ):
         try:
             next(sel)
         except StopIteration:
-            raise KeyError("More than one row selected!")
-        return row
+            return row
+        raise KeyError("More than one row selected!")
 
     @classmethod
     def _convert_data_for_store(cls, data):
