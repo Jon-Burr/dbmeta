@@ -68,6 +68,9 @@ class AlgebraicGenerator(object):
     def __iter__(self):
         return self._itr
 
+    def __next__(self):
+        return next(self._itr)
+
     def __eq__(self, other):
         return self.call(operator.eq, other)
 

@@ -46,9 +46,16 @@ class JSONStore(Store):
 
 class MutableJSONStore(JSONStore):
     """ Mutable sequential JSON store """
-    def __init__(self, db_file, **kwargs):
-        """ Create the store """
+    def __init__(self, db_file, update_on_change=False, **kwargs):
+        """ Create the store
+        
+            parameters:
+                update_on_change: If True, update is called whenever a change is
+                                  made. Should probably only be called on an
+                                  associative store
+        """
         self._patches = []
+        self._up_on_change = update_on_change
         super(MutableJSONStore, self).__init__(
                 db_file=db_file, allow_missing=True, **kwargs)
 
@@ -106,6 +113,8 @@ class MutableJSONStore(JSONStore):
             "op": o["op"], "value" : o["value"],
             "path": "/{0}{1}".format(path, "/"+o["path"] if o["path"] else "")}
             for o in jsonpatch.make_patch(current, value)]
+        if self._up_on_change:
+            self.update()
 
 class JSONSeqStore(JSONStore, NamedTupSeqStore):
     pass
@@ -124,12 +133,16 @@ class MutableJSONSeqStore(MutableJSONStore, MutableNamedTupSeqStore):
             "value": self._data[idx]._asdict()})
         # Then the one that removes it
         self._patches.append({"op": "remove", "path": "/"+idx})
+        if self._up_on_change:
+            self.update()
 
     def append(self, row_data):
         super(MutableJSONSeqStore, self).append(row_data)
         self._patches.append({
             "op": "add", "path": "/-",
             "value": self._from_tuple(self._data[-1])})
+        if self._up_on_change:
+            self.update()
                
 
 class JSONAssocStore(JSONStore, NamedTupAssocStore):
@@ -139,6 +152,8 @@ class MutableJSONAssocStore(MutableJSONStore, MutableNamedTupAssocStore):
     def __delitem__(self, idx):
         super(MutableJSONAssocStore, self).__delitem__(idx)
         self._patches.append({"op": "remove", "path" : "/"+idx})
+        if self._up_on_change:
+            self.update()
 
     def add(self, index, row_data):
         super(MutableJSONAssocStore, self).add(index, row_data)
@@ -146,3 +161,5 @@ class MutableJSONAssocStore(MutableJSONStore, MutableNamedTupAssocStore):
         self._patches.append({
             "op": "add", "path": "/{0}".format(write_index), 
             "value": self._from_tuple(self._data[index])})
+        if self._up_on_change:
+            self.update()

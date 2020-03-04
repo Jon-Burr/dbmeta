@@ -138,7 +138,7 @@ class RowMeta(type):
     def row_bases(cls, db_cls):
         """ Deduce the correct row base classes from a given db class """
         return tuple(
-                b._row-cls for b in db_cls.mro()[1:]
+                b._row_cls for b in db_cls.mro()[1:]
                 if hasattr(b, "_row_cls") and b._row_cls is not None)
 
 class DBMeta(abc.ABCMeta):
