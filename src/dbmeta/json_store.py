@@ -75,7 +75,7 @@ class MutableJSONStore(JSONStore):
         try:
             patch = jsonpatch.JsonPatch(self._patches)
             patch.apply(on_disk, in_place=True)
-        except jsonpatch.JsonPatchException as e:
+        except Exception as e:
             # Use the current POSIX time stamp to make a unique filename
             stamp = int(time.time() )
             tmp_db = "{0}.{1}".format(self._db_file, stamp)
@@ -113,7 +113,7 @@ class MutableJSONStore(JSONStore):
         path = self._index_column.write_func(row_idx, "JSON")
         self._patches += [{
             "op": o["op"], "value" : o["value"],
-            "path": "/{0}{1}".format(path, "/"+o["path"] if o["path"] else "")}
+            "path": "/{0}{1}".format(path, o["path"])}
             for o in jsonpatch.make_patch(before, after)]
         if self._up_on_change:
             self.update()
