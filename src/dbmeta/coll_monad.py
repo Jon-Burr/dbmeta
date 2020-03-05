@@ -48,7 +48,7 @@ class CollMonad(Iterable):
             zipping objects like strings.
         """
         def to_repeat(x):
-            if isinstance(x, Iterator):
+            if isinstance(x, (cls, Iterator)):
                 return x
             else:
                 return repeat(x)
