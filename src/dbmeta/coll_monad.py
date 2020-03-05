@@ -135,6 +135,9 @@ class ItrMonad(CollMonad, Iterator):
 
         Only valid for a single pass, but likely to be more efficient for most
         operations (each individual calculation can short circuit, for example)
+
+        If the iterator has side effects, it can be run through by calling
+        invoke. After this the iterator will be exhausted.
     """
     def __init__(self, itr):
         if not isinstance(itr, Iterator):
@@ -143,6 +146,11 @@ class ItrMonad(CollMonad, Iterator):
 
     def __iter__(self):
         return self
+
+    def invoke(self):
+        """ Evaluate the iterator, causing any side effects to occur """
+        for _ in self:
+            pass
 
     if PY3:
         def __next__(self):

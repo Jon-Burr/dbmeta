@@ -467,6 +467,10 @@ class AssocDatabase(DBBase, Mapping):
     def is_associative(self):
         return True
 
+    def __contains__(self, key):
+        key =  getattr(type(self), self._index_column).store_type(key)
+        return key in self._store
+
     def __iter__(self):
         cnv = getattr(type(self), self._index_column).type
         return (cnv(x) for x in self._store)
