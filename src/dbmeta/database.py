@@ -320,6 +320,12 @@ class Row(with_metaclass(RowMeta, object) ):
         else:
             return db.append(**kwargs)
 
+    def __repr__(self):
+        """ Default representation """
+        return "{0}({1})".format(type(self).__name__, ", ".join(
+            map("{0}={1}".format,
+                (f.name, getattr(self, f.name)) for f in type(self)._fields)))
+
 
 class DBBase(with_metaclass(DBMeta, object) ):
     """ Base class for all databases
