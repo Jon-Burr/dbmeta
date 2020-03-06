@@ -324,7 +324,8 @@ class Row(with_metaclass(RowMeta, object) ):
         """ Default representation """
         return "{0}({1})".format(type(self).__name__, ", ".join(
             map("{0}={1}".format,
-                (f.name, getattr(self, f.name)) for f in type(self)._fields)))
+               ( (f.name, getattr(self, f.name)) for f in type(self)._fields)
+               )))
 
 
 class DBBase(with_metaclass(DBMeta, object) ):
