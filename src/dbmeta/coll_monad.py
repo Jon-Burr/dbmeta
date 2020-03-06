@@ -50,6 +50,11 @@ class CollMonad(Iterable):
         TupleMonad(False, False, True, False, False, False)
         >>> TupleMonad.any(tup < 1, tup > 4, tup % 3 == 0)
         TupleMonad(True, False, False, True, False, True)
+
+        There is also a special in_ method for checking membership
+        >>> tup1 = TupleMonad([0, 1, 2, 3, 4, 5])
+        >>> TupleMonad.in_(tup1, (0, 3, 4))
+        TupleMonad(True, False, False, True, True, False)
     """
     @classmethod
     def apply(cls, func, *args, **kwargs):
@@ -85,6 +90,11 @@ class CollMonad(Iterable):
         return cls(func(*a[:-1], **a[-1]) for a in zip(*args))
 
     @classmethod
+    def in_(cls, lhs, rhs):
+        """ Elementwise 'lhs in rhs' """
+        return cls.apply(lambda x, y: x in y, lhs, rhs)
+
+    @classmethod
     def and_(cls, lhs, rhs):
         """ Elementwise 'and' of lhs and rhs """
         return cls.apply(lambda x, y: x and y, lhs, rhs)
@@ -103,6 +113,29 @@ class CollMonad(Iterable):
     def all(cls, *args):
         """ Apply the all function elementwise """
         return cls.apply(all, *args)
+
+    @classmethod
+    def flatten(cls, iterable, cls_tup=None, no_expand=None):
+        """ Flatten an arbitarily (modulo stack limit) nested iterable
+        
+            By default this only expands CollMonads, Iterators, lists and tuples
+            (to avoid unfolding strings) but this can be modified by passing a
+            tuple of types to expand to cls_tup. Types can be excluded from the
+            expansion by passing a tuple to no_expand
+        """
+        if cls_tup is None:
+            cls_tup = (CollMonad, Iterator, list, tuple)
+        if no_expand is None:
+            no_expand = ()
+        def iter_flatten(itrbl):
+            itr = iter(itrbl)
+            for ele in itr:
+                if isinstance(ele, cls_tup) and not isinstance(ele, no_expand):
+                    for ele2 in iter_flatten(ele):
+                        yield ele2
+                else:
+                    yield ele
+        return cls(iter_flatten(iterable))
 
 
     def call(self, func, *args, **kwargs):
