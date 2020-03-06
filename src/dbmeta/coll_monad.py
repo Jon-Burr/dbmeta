@@ -14,27 +14,42 @@ class CollMonad(Iterable):
 
         Operators can be forwarded
         >>> itr = ItrMonad(iter([0, 1, 2, 3, 4, 5]))
-        >>> print(list(itr * 2 + 1))
+        >>> list(itr * 2 + 1)
         [1, 3, 5, 7, 9, 11]
 
         As can member function calls
         >>> itr = ItrMonad(iter(["Hello {0}", "Goodbye {0}"]))
-        >>> print(list(itr.format("World")))
+        >>> list(itr.format("World"))
         ["Hello World", "Goodbye World"]
 
         If a provided argument is an iterator, it will be izipped together when
         called
         >>> itr1 = ItrMonad(iter([0, 1, 2, 3, 4, 5]))
         >>> itr2 = ItrMonad(iter([0, 2, 4, 6, 8]))
-        >>> print(list(itr1 + itr2))
+        >>> list(itr1 + itr2)
         [0, 3, 6, 9, 12]
 
         Note here that the normal izip behaviour of ending when the shortest iterator 
 
         A non member function can also be called using apply
         >>> itr1 = iter([0, 1, 2, 3, 4, 5])
-        >>> print(list(ItrMonad.apply(str.format, "x = {0}", itr1)))
+        >>> list(ItrMonad.apply(str.format, "x = {0}", itr1))
         ['x = 0', 'x = 1', 'x = 2', 'x = 3', 'x = 4', 'x = 5']
+
+        The class also provides special methods for doing element-wise boolean
+        operations with the expected short-circuiting behaviour. This example
+        uses TupleMonad to avoid having to redeclare the initial tuple but the
+        behaviour is the same for ItrMonad.
+
+        >>> tup1 = TupleMonad([0, 1, 2, 3, 4, 5])
+        >>> TupleMonad.and_(tup1 > 2, tup1 < 4)
+        TupleMonad(False, False, False, True, False, False)
+        >>> TupleMonad.or_(tup1 < 2, tup1 > 4)
+        TupleMonad(True, True, False, False, False, True)
+        >>> TupleMonad.all(tup1 > 1, tup < 4, tup % 2 == 0)
+        TupleMonad(False, False, True, False, False, False)
+        >>> TupleMonad.any(tup < 1, tup > 4, tup % 3 == 0)
+        TupleMonad(True, False, False, True, False, True)
     """
     @classmethod
     def apply(cls, func, *args, **kwargs):
@@ -48,7 +63,9 @@ class CollMonad(Iterable):
             zipping objects like strings.
         """
         def to_repeat(x):
-            if isinstance(x, (cls, Iterator)):
+            # Note the use of CollMonad here rather than cls - this is to avoid
+            # derived classes not counting each other properly
+            if isinstance(x, (CollMonad, Iterator)):
                 return x
             else:
                 return repeat(x)
@@ -66,6 +83,27 @@ class CollMonad(Iterable):
             g_kw = repeat({})
         args.append(g_kw)
         return cls(func(*a[:-1], **a[-1]) for a in zip(*args))
+
+    @classmethod
+    def and_(cls, lhs, rhs):
+        """ Elementwise 'and' of lhs and rhs """
+        return cls.apply(lambda x, y: x and y, lhs, rhs)
+
+    @classmethod
+    def or_(cls, lhs, rhs):
+        """ Elementwise 'or' of lhs and rhs """
+        return cls.apply(lambda x, y: x or y, lhs, rhs)
+
+    @classmethod
+    def any(cls, *args):
+        """ Apply the any function elementwise """
+        return cls.apply(any, *args)
+
+    @classmethod
+    def all(cls, *args):
+        """ Apply the all function elementwise """
+        return cls.apply(all, *args)
+
 
     def call(self, func, *args, **kwargs):
         """ Call the given function for each member of the iterable with that
@@ -178,6 +216,9 @@ class TupleMonad(CollMonad):
         return ItrMonad(self._tup)
 
     def __str__(self):
+        return str(self._tup)
+
+    def __repr__(self):
         return "TupleMonad{0}".format(self._tup)
 
     def __len__(self):
