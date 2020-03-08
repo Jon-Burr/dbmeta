@@ -111,8 +111,7 @@ def reader(f):
         will use this and it will act differently on different store types,
         otherwise it will act the same for all sources
     """
-    if not sig_has_kwarg(f, "source")
-    if "source" not in sig.parameters:
+    if not sig_has_kwarg(f, "source"):
         # First create a new function that wraps f with an ignored source
         # parameter
         @wraps(f)
