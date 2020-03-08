@@ -101,7 +101,11 @@ def reader(f):
         will use this and it will act differently on different store types,
         otherwise it will act the same for all sources
     """
-    sig = signature(f)
+    # kludge to allow passing in types to these functions
+    if isinstance(f, type):
+        sig = signature(f.__init__)
+    else:
+        sig = signature(f)
     if "source" not in sig.parameters:
         # First create a new function that wraps f with an ignored source
         # parameter
@@ -133,7 +137,10 @@ def writer(f):
         will use this and it will act differently on different store types,
         otherwise it will act the same for all targets
     """
-    sig = signature(f)
+    if isinstance(f, type):
+        sig = signature(f.__init__)
+    else:
+        sig = signature(f)
     if "target" not in sig.parameters:
         # First create a new function that wraps f with an ignored target
         # parameter
@@ -301,7 +308,10 @@ def index_reader(f):
         If the provided function does not have a 'source' kwarg an ignored one
         will be added, otherwise the undecorated function is returned
     """
-    sig = signature(f)
+    if isinstance(f, type):
+        sig = signature(f.__init__)
+    else:
+        sig = signature(f)
     if "source" in sig.parameters:
         return f
     @wraps(f)
@@ -318,7 +328,10 @@ def index_writer(f):
         If the provided function does not have a 'target' kwarg an ignored one
         will be added, otherwise the undecorated function is returned
     """
-    sig = signature(f)
+    if isinstance(f, type):
+        sig = signature(f.__init__)
+    else:
+        sig = signature(f)
     if "target" in sig.parameters:
         return f
     @wraps(f)
