@@ -10,10 +10,20 @@ else:
     from collections import Mapping
     from funcsigs import signature
 
-
 def identity(x):
     """ Helper identity function x -> x """
     return x
+
+def sig_has_kwarg(f, kwarg):
+    """ Check if a function's signature has a given kwarg """
+    try:
+        if isinstance(f, type):
+            return kwarg in signature(f.__init__).parameters
+        else:
+            return kwarg in signature(f).parameters
+    except ValueError:
+        # Builtin or something else that signature can't deal with
+        return False
 
 class ColumnDescBase(object):
     """ Describe columns and the index column in the database
@@ -101,11 +111,7 @@ def reader(f):
         will use this and it will act differently on different store types,
         otherwise it will act the same for all sources
     """
-    # kludge to allow passing in types to these functions
-    if isinstance(f, type):
-        sig = signature(f.__init__)
-    else:
-        sig = signature(f)
+    if not sig_has_kwarg(f, "source")
     if "source" not in sig.parameters:
         # First create a new function that wraps f with an ignored source
         # parameter
@@ -137,11 +143,7 @@ def writer(f):
         will use this and it will act differently on different store types,
         otherwise it will act the same for all targets
     """
-    if isinstance(f, type):
-        sig = signature(f.__init__)
-    else:
-        sig = signature(f)
-    if "target" not in sig.parameters:
+    if not sig_has_kwarg(f, "target"):
         # First create a new function that wraps f with an ignored target
         # parameter
         @wraps(f)
@@ -308,11 +310,7 @@ def index_reader(f):
         If the provided function does not have a 'source' kwarg an ignored one
         will be added, otherwise the undecorated function is returned
     """
-    if isinstance(f, type):
-        sig = signature(f.__init__)
-    else:
-        sig = signature(f)
-    if "source" in sig.parameters:
+    if sig_has_kwarg(f, "source"):
         return f
     @wraps(f)
     def wrapper(x, source):
@@ -328,11 +326,7 @@ def index_writer(f):
         If the provided function does not have a 'target' kwarg an ignored one
         will be added, otherwise the undecorated function is returned
     """
-    if isinstance(f, type):
-        sig = signature(f.__init__)
-    else:
-        sig = signature(f)
-    if "target" in sig.parameters:
+    if sig_has_kwarg(f, "target"):
         return f
     @wraps(f)
     def wrapper(x, target):
