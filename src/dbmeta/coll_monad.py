@@ -46,9 +46,9 @@ class CollMonad(Iterable):
         TupleMonad(False, False, False, True, False, False)
         >>> TupleMonad.or_(tup1 < 2, tup1 > 4)
         TupleMonad(True, True, False, False, False, True)
-        >>> TupleMonad.all(tup1 > 1, tup < 4, tup % 2 == 0)
+        >>> TupleMonad.all(tup1 > 1, tup1 < 4, tup1 % 2 == 0)
         TupleMonad(False, False, True, False, False, False)
-        >>> TupleMonad.any(tup < 1, tup > 4, tup % 3 == 0)
+        >>> TupleMonad.any(tup1 < 1, tup1 > 4, tup1 % 3 == 0)
         TupleMonad(True, False, False, True, False, True)
 
         There is also a special in_ method for checking membership
@@ -107,12 +107,12 @@ class CollMonad(Iterable):
     @classmethod
     def any(cls, *args):
         """ Apply the any function elementwise """
-        return cls.apply(any, *args)
+        return cls.apply(lambda *args: any(args), *args)
 
     @classmethod
     def all(cls, *args):
         """ Apply the all function elementwise """
-        return cls.apply(all, *args)
+        return cls.apply(lambda *args: all(args), *args)
 
     @classmethod
     def flatten(cls, iterable, cls_tup=None, no_expand=None):
