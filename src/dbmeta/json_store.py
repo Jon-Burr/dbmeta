@@ -155,7 +155,7 @@ class JSONAssocStore(JSONStore, TupleAssocStore):
 class MutableJSONAssocStore(MutableJSONStore, MutableTupleAssocStore):
     def __delitem__(self, idx):
         super(MutableJSONAssocStore, self).__delitem__(idx)
-        idx = self._index_column.write_func(index, "JSON")
+        idx = self._index_column.write_func(idx, "JSON")
         self._patches.append({"op": "remove", "path" : "/"+idx})
         if self._up_on_change:
             self.update()
