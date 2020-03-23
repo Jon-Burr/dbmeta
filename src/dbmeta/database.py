@@ -373,6 +373,15 @@ class DBBase(with_metaclass(DBMeta, object) ):
         # itself to our references list
         return self._row_cls(self, idx)
 
+    def __delitem__(self, row):
+        """ Remove a row """
+        if isinstance(row, self._row_cls):
+            index = row._index
+            self._references.remove(row)
+        else:
+            index = row
+        del self._store[index]
+
     def select(self, selection):
         """ Select all rows that correspond to the given selection
 
@@ -451,11 +460,6 @@ class SeqDatabase(DBBase, Sequence):
                 row._index = remap[row._index]
             except KeyError:
                 pass
-
-    def __delitem__(self, row):
-        """ Remove a row """
-        del self._store[row._index]
-        self._references.remove(row)
 
     def append(self, **row_data):
         """ Add a new row with the supplied data """
