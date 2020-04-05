@@ -1,3 +1,4 @@
+from builtins import zip
 from future.utils import PY3, iteritems
 from itertools import repeat
 import operator
@@ -80,11 +81,10 @@ class CollMonad(Iterable):
 
         # Make any kwargs the same
         if kwargs:
-            raise ValueError("Right now kwargs result in an infinite loop...")
             # zip the values together
             kwargs = {k : to_repeat(v) for k, v in iteritems(kwargs)}
             # and then zip them back together with the original keys
-            g_kw = dict(zip(kwargs.keys(), vs)) for vs in zip(*kwargs.values() )
+            g_kw = (dict(zip(kwargs.keys(), vs)) for vs in zip(*kwargs.values() ) )
         else:
             g_kw = repeat({})
         args.append(g_kw)
